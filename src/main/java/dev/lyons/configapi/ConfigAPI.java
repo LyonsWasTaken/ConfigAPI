@@ -22,6 +22,18 @@ public final class ConfigAPI {
 
 	private static final Map<Object, ConfigClass> configMap = new LinkedHashMap<>();
 
+	public <T extends ConfigClass> T getConfigObject(Object key) {
+		Object obj = configMap.get(key);
+		if (obj == null) return null;
+		return (T) obj;
+	}
+
+	public <T extends ConfigClass> T getConfigObject(Class<T> key) {
+		ConfigClass obj = configMap.get(key);
+		if (obj == null) return null;
+		return (T) obj;
+	}
+
 	public void register(final Object key, final ConfigClass config) {
 		configMap.putIfAbsent(key, config);
 	}
