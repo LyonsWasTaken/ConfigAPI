@@ -3,12 +3,11 @@ package dev.lyons.configapi;
 import java.io.File;
 import java.io.OutputStream;
 import java.nio.file.Files;
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-public final class ConfigAPI {
+public final class ConfigAPI implements Iterable<ConfigClass> {
 	private static final ConfigAPI instance = new ConfigAPI();
 	private static final Logger logger = Logger.getLogger(ConfigAPI.class.getName());
 
@@ -42,28 +41,38 @@ public final class ConfigAPI {
 		configMap.putIfAbsent(config.getClass(), config);
 	}
 
-	public void loadAll() {
-		configMap.values().forEach(ConfigClass::preInit);
-		for (final ConfigClass config : configMap.values()) {
-			try {
-				if (!config.getFile().exists() || config.getConfigData().isEmpty()) { // load defaults
-					System.out.println("T");
-					if (!config.getFile().exists()) {
-						config.getFile().getParentFile().mkdirs();
-						config.getFile().createNewFile();
-					}
-					saveConfig(config);
-					continue;
-				}
-				String configData = config.getConfigData();
-				configData = EnumFormattingType.JSON.formatConfig(configData);
-				config.getGson().fromJson(configData, config.getClass());
-			} catch (final Throwable err) {
-				logger.log(Level.SEVERE, "BROKEN CONFIG AT: " + config.getClass().getSimpleName());
-				throw new RuntimeException(err);
-			}
+	public void loadSpecificConfig(final ConfigClass config, boolean preInit, boolean postInit) {
+		if (preInit) {
+			config.preInit();
 		}
-		configMap.values().forEach(ConfigClass::postInit);
+		block1:
+		try {
+			if (!config.getFile().exists() || config.getConfigData().isEmpty()) { // load defaults
+				if (!config.getFile().exists()) {
+					config.getFile().getParentFile().mkdirs();
+					config.getFile().createNewFile();
+				}
+				saveConfig(config);
+				break block1;
+			}
+			String configData = config.getConfigData();
+			configData = EnumFormattingType.JSON.formatConfig(configData);
+			config.getGson().fromJson(configData, config.getClass());
+		} catch (final Throwable err) {
+			logger.log(Level.SEVERE, "BROKEN CONFIG AT: " + config.getClass().getSimpleName());
+			throw new RuntimeException(err);
+		}
+		if (postInit) {
+			config.postInit();
+		}
+	}
+
+	public void loadAll() {
+		this.forEach(ConfigClass::preInit);
+		for (final ConfigClass config : this) {
+			loadSpecificConfig(config, false, false);
+		}
+		this.forEach(ConfigClass::postInit);
 	}
 
 	public void saveConfig(final ConfigClass config) {
@@ -84,7 +93,11 @@ public final class ConfigAPI {
 	}
 
 	public void saveAll() {
-		configMap.values().forEach(this::saveConfig);
+		this.forEach(this::saveConfig);
 	}
 
+	@Override
+	public Iterator<ConfigClass> iterator() {
+		return configMap.values().iterator();
+	}
 }
